@@ -34,13 +34,45 @@ function loadData() {
   const saved = localStorage.getItem("requestData");
   return saved ? JSON.parse(saved) : defaultData;
 }
-
+  
 function renderTable(data) {
   tableBody.innerHTML = "";
-  data.forEach((item, index) => {
+  let draggedIndex = null;
+
+   data.forEach((item, index) => {
     const row = document.createElement("tr");
-    row.innerHTML = `
+    row.setAttribute("draggable", "true");
+    row.dataset.index = index;
     
+     // === DRAG & DROP ===
+    row.addEventListener("dragstart", (e) => {
+      draggedIndex = index;
+      row.style.opacity = "0.4";
+      e.dataTransfer.effectAllowed = "move";
+    });
+    row.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      row.style.borderTop = "2px solid #007bff";
+    });
+    row.addEventListener("dragleave", () => {
+      row.style.borderTop = "";
+    });
+    row.addEventListener("drop", (e) => {
+      e.preventDefault();
+      row.style.borderTop = "";
+      if (draggedIndex !== null && draggedIndex !== index) {
+        const draggedItem = data[draggedIndex];
+        data.splice(draggedIndex, 1);
+        data.splice(index, 0, draggedItem);
+        saveData(data);
+        renderTable(filterData(data));
+      }
+    });
+    row.addEventListener("dragend", () => {
+      row.style.opacity = "1";
+    });
+      
+      row.innerHTML = `
       <td>${index + 1}</td>
       <td>${item.date}</td>
       <td>${item.client}</td>
@@ -51,7 +83,7 @@ function renderTable(data) {
       <td>${item.comment}</td>
       <td>
         <select class="status-select">
-          ${["Принят","Отправлен","На диагностике","Готов к выдаче","Требуется звонок","Отказано"]
+          ${["Принят", "Отправлен", "На диагностике", "Готов к выдаче", "Требуется звонок", "Отказано"]
             .map(s => `<option ${item.status === s ? "selected" : ""}>${s}</option>`).join("")}
         </select>
         <button class="update-btn">OK</button>
@@ -61,6 +93,54 @@ function renderTable(data) {
         <button class="delete-btn">🗑️</button>
       </td>
     `;
+     row.querySelector(".update-btn").onclick = () => {
+      const newStatus = row.querySelector(".status-select").value;
+      const now = new Date();
+      item.status = newStatus;
+      item.updateDate = now.toLocaleDateString("ru-RU");
+      saveData(data);
+      renderTable(filterData(data));
+    };
+    row.querySelector(".details-btn").onclick = () => openModal(item, data);
+    row.querySelector(".delete-btn").onclick = () => {
+      if (confirm("Удалить заявку?")) {
+        data.splice(index, 1);
+        saveData(data);
+        renderTable(filterData(data));
+      }
+    };
+
+    row.setAttribute("draggable", "true");
+    row.dataset.index = index;
+        row.addEventListener("dragstart", (e) => {
+      draggedIndex = index;
+      row.style.opacity = "0.4";
+      e.dataTransfer.effectAllowed = "move";
+    });
+    row.addEventListener("dragover", (e) => {
+      e.preventDefault(); // Обязательно
+      row.style.borderTop = "2px solid #007bff";
+    });
+     row.addEventListener("dragleave", () => {
+      row.style.borderTop = "";
+    });
+    row.addEventListener("drop", (e) => {
+      e.preventDefault();
+      row.style.borderTop = "";
+      if (draggedIndex !== null && draggedIndex !== index) {
+        const draggedItem = data[draggedIndex];
+        data.splice(draggedIndex, 1);
+        data.splice(index, 0, draggedItem);
+        saveData(data);
+        renderTable(filterData(data));
+      }
+    });
+    row.addEventListener("dragend", () => {
+      row.style.opacity = "1";
+    });
+
+
+    
     row.querySelector(".update-btn").onclick = () => {
       const newStatus = row.querySelector(".status-select").value;
       const now = new Date();
@@ -90,7 +170,7 @@ function openModal(item, data) {
 
   modalBody.innerHTML = `
   <div class="modal-section">
-    <h3>Основное</h3>
+    <h3>📌 Основное</h3>
     <label>Клиент:<input value="${item.client}" id="edit-client" /></label>
     <label>Товар:<input value="${item.product}" id="edit-product" /></label>
     <label>Комментарий:<input value="${item.comment}" id="edit-comment" /></label>
@@ -99,43 +179,45 @@ function openModal(item, data) {
       <select id="edit-manager">
         <option value="">-- Не выбран --</option>
         <option ${item.manager === "Козяев В.С." ? "selected" : ""}>Козяев В.С.</option>
-        <option ${item.manager === "Сидоров" ? "selected" : ""}>Сидоров</option>
-        <option ${item.manager === "Петрова" ? "selected" : ""}>Петрова</option>
+        <option ${item.manager === "Храменков И." ? "selected" : ""}>Храменков И.</option>
+        <option ${item.manager === "Заболотский И." ? "selected" : ""}>Заболотский И.</option>
       </select>
     </label>
     <label><input type="checkbox" id="edit-urgent" ${item.urgent ? "checked" : ""}/> Срочная заявка</label>
   </div>
 
-  <div class="modal-section">
-    <h3>Контакты</h3>
-    <label>Адрес СЦ:<input value="${item.scAddress}" id="edit-scAddress" /></label>
-    <label>Телефон СЦ:<input value="${item.scPhone}" id="edit-scPhone" /></label>
-    <label>Телефон клиента:<input value="${item.clientPhone}" id="edit-clientPhone" /></label>
-    ${item.clientPhone ? `<a href="tel:${item.clientPhone}" class="call-btn">📞 Позвонить</a>` : ""}
-  </div>
-
-  <div class="modal-section">
-    <h3>Файлы</h3>
-    <label>Фото товара: <input type="file" id="product-img" accept="image/*" /></label>
-    <label>Фото серийника: <input type="file" id="serial-img" accept="image/*" /></label>
-    <label>Фото акта: <input type="file" id="act-img" accept="image/*" /></label>
-    <div class="image-preview">
-      ${item.images.product ? `<img src="${item.images.product}" alt="Товар" />` : ""}
-      ${item.images.serial ? `<img src="${item.images.serial}" alt="Серийник" />` : ""}
-      ${item.images.act ? `<img src="${item.images.act}" alt="Акт" />` : ""}
+ <div class="modal-section">
+      <h3>📞 Контакты</h3>
+      <div class="form-row">
+        <label>Адрес СЦ:<input value="${item.scAddress}" id="edit-scAddress" /></label>
+        <label>Телефон СЦ:<input value="${item.scPhone}" id="edit-scPhone" /></label>
+        <label>Телефон клиента:<input value="${item.clientPhone}" id="edit-clientPhone" /></label>
+      </div>
+      ${item.clientPhone ? `<a href="tel:${item.clientPhone}" class="call-btn">📞 Позвонить</a>` : ""}
     </div>
-  </div>
 
   <div class="modal-section">
-    <h3>История</h3>
-    <ul class="history-list">
-      ${item.history.map(h => `<li>${h}</li>`).join("") || "<li>Пока нет</li>"}
-    </ul>
-  </div>
+      <h3>🖼️ Файлы</h3>
+      <label>Фото товара: <input type="file" id="product-img" accept="image/*" /></label>
+      <label>Фото серийника: <input type="file" id="serial-img" accept="image/*" /></label>
+      <label>Фото акта: <input type="file" id="act-img" accept="image/*" /></label>
+      <div class="image-preview">
+        ${item.images.product ? `<img src="${item.images.product}" alt="Товар" />` : ""}
+        ${item.images.serial ? `<img src="${item.images.serial}" alt="Серийник" />` : ""}
+        ${item.images.act ? `<img src="${item.images.act}" alt="Акт" />` : ""}
+      </div>
+    </div>
+
+  div class="modal-section">
+      <h3>📚 История изменений</h3>
+      <ul class="history-list">
+        ${item.history.map(h => `<li>${h}</li>`).join("") || "<li>Пока нет</li>"}
+      </ul>
+    </div>
 
   <div class="modal-actions">
     <button id="save-modal" class="primary-btn">💾 Сохранить</button>
-  </div>
+    </div>
 `;
 
   modal.style.display = "block";
@@ -156,36 +238,42 @@ function openModal(item, data) {
     };
 
     for (let key in newData) {
-      if (item[key] !== newData[key]) {
-        item.history.push(`[${now}] Обновлено поле ${key}`);
-        item[key] = newData[key];
+        if (key === "date") {
+          const formatted = newData[key].split("-").reverse().join(".");
+          if (item.date !== formatted) {
+            item.history.push(`[${now}] Изменена дата создания`);
+            item.date = formatted;
+          }
+        } else if (item[key] !== newData[key]) {
+          item.history.push(`[${now}] Обновлено поле ${key}`);
+          item[key] = newData[key];
+        }
       }
-    }
 
     const readImage = (inputId, key) => {
-      const fileInput = document.getElementById(inputId);
-      if (fileInput.files.length > 0) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          item.images[key] = e.target.result;
-          item.history.push(`[${now}] Заменено фото: ${key}`);
+        const fileInput = document.getElementById(inputId);
+        if (fileInput.files.length > 0) {
+          const reader = new FileReader();
+          reader.onload = e => {
+            item.images[key] = e.target.result;
+            item.history.push(`[${now}] Заменено фото: ${key}`);
+            finalize();
+          };
+          reader.readAsDataURL(fileInput.files[0]);
+        } else {
           finalize();
-        };
-        reader.readAsDataURL(fileInput.files[0]);
-      } else {
-        finalize();
-      }
-    };
+        }
+      };
 
     let loaded = 0;
-    const finalize = () => {
-      loaded++;
-      if (loaded === 3) {
-        saveData(data);
-        renderTable(filterData(data));
-        modal.style.display = "none";
-      }
-    };
+      const finalize = () => {
+        loaded++;
+        if (loaded === 3) {
+          saveData(data);
+          renderTable(filterData(data));
+          modal.style.display = "none";
+        }
+      };
 
     readImage("product-img", "product");
     readImage("serial-img", "serial");
@@ -253,4 +341,52 @@ document.getElementById("add-request-btn").onclick = () => {
   document.getElementById("new-product").value = "";
   document.getElementById("new-service-id").value = "";
   document.getElementById("new-comment").value = "";
+};
+// 🌗 Переключатель тёмной темы
+const themeToggle = document.getElementById("theme-toggle");
+const savedTheme = localStorage.getItem("theme");
+
+if (savedTheme === "dark") {
+  document.body.classList.add("dark-theme");
+  themeToggle.textContent = "☀️";
+}
+
+themeToggle.onclick = () => {
+  document.body.classList.toggle("dark-theme");
+  const isDark = document.body.classList.contains("dark-theme");
+  localStorage.setItem("theme", isDark ? "dark" : "light");
+  themeToggle.textContent = isDark ? "☀️" : "🌙";
+};
+// 📥 СКАЧАТЬ ЗАЯВКИ
+document.getElementById("export-btn").onclick = () => {
+  const data = loadData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "zayavki.json";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// 📤 ЗАГРУЗИТЬ ФАЙЛ
+document.getElementById("import-btn").onclick = () => {
+  document.getElementById("import-file").click();
+};
+
+document.getElementById("import-file").onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      saveData(data);
+      renderTable(filterData(data));
+      alert("Заявки успешно загружены!");
+    } catch (err) {
+      alert("Ошибка при чтении файла.");
+    }
+  };
+  reader.readAsText(file);
 };
